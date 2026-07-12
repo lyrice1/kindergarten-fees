@@ -96,22 +96,24 @@ watch(() => props.title, (val) => {
 .dialog-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.4);
+  background: rgba(0, 0, 0, 0.45);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
+  backdrop-filter: blur(4px);
 }
 
 .dialog {
   background: #fff;
-  border-radius: 12px;
+  border-radius: 14px;
   width: 90vw;
   max-width: 600px;
   max-height: 80vh;
+  max-height: 80dvh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 8px 40px rgba(0,0,0,0.15);
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.12);
 }
 
 .dialog-header {
@@ -119,13 +121,15 @@ watch(() => props.title, (val) => {
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid #f0f1f8;
+  background: linear-gradient(180deg, #fafbfc, #fff);
+  border-radius: 14px 14px 0 0;
 }
 
 .dialog-title {
   font-size: 16px;
-  font-weight: 600;
-  color: #2d3436;
+  font-weight: 700;
+  color: #1a1a2e;
 }
 
 .close-btn {
@@ -134,17 +138,18 @@ watch(() => props.title, (val) => {
   border: none;
   background: none;
   font-size: 22px;
-  color: #b2bec3;
+  color: #a0aec0;
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: all 0.15s;
 }
 
 .close-btn:hover {
-  background: #f5f6fa;
-  color: #636e72;
+  background: #edf2f7;
+  color: #4a5568;
 }
 
 .dialog-body {
@@ -154,6 +159,7 @@ watch(() => props.title, (val) => {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  background: #fafbfc;
 }
 
 .msg {
@@ -178,12 +184,12 @@ watch(() => props.title, (val) => {
 .msg-role {
   font-size: 11px;
   font-weight: 600;
-  color: #636e72;
+  color: #4a5568;
 }
 
 .msg-time {
   font-size: 10px;
-  color: #b2bec3;
+  color: #a0aec0;
 }
 
 .msg-content {
@@ -196,13 +202,15 @@ watch(() => props.title, (val) => {
 }
 
 .msg.sent .msg-content {
-  background: #6c5ce7;
+  background: linear-gradient(135deg, #667eea, #764ba2);
   color: #fff;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
 }
 
 .msg.reply .msg-content {
-  background: #f0f0f0;
-  color: #2d3436;
+  background: #fff;
+  color: #2d3748;
+  border: 1px solid #e2e8f0;
 }
 
 .waiting {
@@ -214,7 +222,9 @@ watch(() => props.title, (val) => {
   flex-direction: column;
   gap: 8px;
   padding: 12px 20px;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid #f0f1f8;
+  background: #fff;
+  border-radius: 0 0 14px 14px;
 }
 
 .footer-input-row {
@@ -225,14 +235,18 @@ watch(() => props.title, (val) => {
 .footer-input-row input {
   flex: 1;
   padding: 10px 14px;
-  border: 1px solid #dfe6e9;
-  border-radius: 8px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
   font-size: 14px;
   outline: none;
+  background: #f8fafc;
+  transition: all 0.2s;
 }
 
 .footer-input-row input:focus {
-  border-color: #6c5ce7;
+  border-color: #667eea;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.12);
 }
 
 .footer-quick-row {
@@ -264,59 +278,79 @@ watch(() => props.title, (val) => {
 .btn-send {
   padding: 10px 20px;
   border: none;
-  border-radius: 8px;
-  background: #6c5ce7;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
   color: #fff;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 6px rgba(102, 126, 234, 0.3);
 }
 
 .btn-send:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+  transform: none !important;
+}
+
+.btn-send:active:not(:disabled) {
+  transform: scale(0.95);
 }
 
 .btn-send:hover:not(:disabled) {
-  background: #5a4bd1;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
 
 .btn-login {
   padding: 10px 16px;
   border: none;
   border-radius: 8px;
-  background: #0984e3;
+  background: linear-gradient(135deg, #0984e3, #0773c5);
   color: #fff;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 6px rgba(9, 132, 227, 0.3);
 }
 
 .btn-login:hover {
-  background: #0773c5;
+  box-shadow: 0 4px 12px rgba(9, 132, 227, 0.4);
+}
+
+.btn-login:active {
+  transform: scale(0.95);
 }
 
 .btn-num {
   padding: 10px 14px;
   border: none;
   border-radius: 8px;
-  background: #00b894;
+  background: linear-gradient(135deg, #00b894, #00a381);
   color: #fff;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   min-width: 36px;
+  transition: all 0.2s;
+  box-shadow: 0 2px 6px rgba(0, 184, 148, 0.3);
 }
 
 .btn-num:hover {
-  background: #00a381;
+  box-shadow: 0 4px 12px rgba(0, 184, 148, 0.4);
+}
+
+.btn-num:active {
+  transform: scale(0.95);
 }
 
 .btn-num--q {
-  background: #6c5ce7;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  box-shadow: 0 2px 6px rgba(102, 126, 234, 0.3);
 }
 
 .btn-num--q:hover {
-  background: #5a4bd1;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
 </style>

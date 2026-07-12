@@ -21,6 +21,8 @@
           <option value="" disabled>移动到...</option>
           <option v-for="g in allGroups" :key="g.id" :value="g.id">{{ g.name }}</option>
         </select>
+        <button v-if="selectedCount === 1" class="btn btn-batch" @click="moveSelectedProjectUp" title="上移选中项目">▲ 上移</button>
+        <button v-if="selectedCount === 1" class="btn btn-batch" @click="moveSelectedProjectDown" title="下移选中项目">▼ 下移</button>
         <button class="btn btn-reset" @click="resetAll">重置</button>
         <button v-if="undoStack.length" class="btn btn-undo" @click="performUndo">撤销 ({{ undoStack.length }})</button>
       </div>
@@ -55,7 +57,7 @@
                 </th>
                 <th>项目名称</th>
                 <th style="width:180px">操作</th>
-                <th>到期时间</th>
+                <th class="expiry-th" @click="sortByExpiry(group.id)">&#8593; 到期时间</th>
                 <th>自定义指令</th>
                 <th>备注</th>
               </tr>
@@ -122,7 +124,7 @@
 
 <script setup>
 import { ref, computed, watch, nextTick } from 'vue'
-import { getGroups, saveGroups, addProject as addProjectData, deleteProject, renameGroup, addGroup as addGroupData, deleteGroup, reorderGroup, resetToDefault, moveProject, addCustomCommand, removeCustomCommand, updateProjectRemark } from '../data/projects.js'
+import { getGroups, saveGroups, addProject as addProjectData, deleteProject, renameGroup, addGroup as addGroupData, deleteGroup, reorderGroup, reorderProject, resetToDefault, moveProject, addCustomCommand, removeCustomCommand, updateProjectRemark, sortProjectsByExpiry } from '../data/projects.js'
 
 const props = defineProps({ disabled: Boolean, expiryVer: Number })
 const emit = defineEmits(['send', 'batchQuery'])
@@ -252,6 +254,31 @@ function moveGroupDown(id) {
   groups.value = getGroups()
 }
 
+function getSelectedProjectGroup() {
+  let singleId = null
+  for (const s of selected.value) { singleId = s }
+  if (!singleId) return null
+  for (const g of groups.value) {
+    const p = g.projects.find(p => p.id === singleId)
+    if (p) return { groupId: g.id, pid: p.id }
+  }
+  return null
+}
+
+function moveSelectedProjectUp() {
+  const info = getSelectedProjectGroup()
+  if (!info) return
+  reorderProject(info.groupId, info.pid, 'up')
+  groups.value = getGroups()
+}
+
+function moveSelectedProjectDown() {
+  const info = getSelectedProjectGroup()
+  if (!info) return
+  reorderProject(info.groupId, info.pid, 'down')
+  groups.value = getGroups()
+}
+
 function startAddProject(gid) {
   addProjectGroup.value = gid
   newProject.value = { name: '' }
@@ -374,6 +401,11 @@ function getExpiryClass(expiryStr) {
   return 'expiry-red'
 }
 
+function sortByExpiry(gid) {
+  sortProjectsByExpiry(gid)
+  groups.value = getGroups()
+}
+
 function performUndo() {
   if (!undoStack.value.length) return
   const snapshot = undoStack.value.pop()
@@ -389,32 +421,37 @@ function performUndo() {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  margin-bottom: 16px;
+  margin-bottom: 14px;
 }
 
 .search-row {
   flex: 1;
-  min-width: 180px;
+  min-width: 160px;
 }
 
 .search-input {
   width: 100%;
-  padding: 7px 10px;
-  border: 1px solid #dfe6e9;
-  border-radius: 6px;
-  font-size: 13px;
+  padding: 10px 14px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 14px;
   outline: none;
+  background: #f8fafc;
+  transition: all 0.2s;
 }
 
 .search-input:focus {
-  border-color: #6c5ce7;
+  border-color: #667eea;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.12);
 }
 
 .toolbar-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
+  width: 100%;
 }
 
 .check-all-label {
@@ -422,53 +459,64 @@ function performUndo() {
   align-items: center;
   gap: 4px;
   font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
   user-select: none;
+  color: #4a5568;
 }
 
 .btn {
-  padding: 6px 12px;
+  padding: 8px 14px;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
-  font-weight: 500;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.95);
 }
 
 .btn-batch {
-  background: #6c5ce7;
+  background: linear-gradient(135deg, #667eea, #764ba2);
   color: #fff;
+  box-shadow: 0 2px 6px rgba(102, 126, 234, 0.3);
 }
 
 .btn-batch:hover:not(:disabled) {
-  background: #5a4bd1;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
 
 .btn-del-sel {
-  background: #d63031;
+  background: linear-gradient(135deg, #e74c3c, #c0392b);
   color: #fff;
+  box-shadow: 0 2px 6px rgba(231, 76, 60, 0.25);
 }
 
 .btn-del-sel:hover:not(:disabled) {
-  background: #c0392b;
+  box-shadow: 0 4px 12px rgba(231, 76, 60, 0.35);
 }
 
 .btn-add-group {
-  background: #00b894;
+  background: linear-gradient(135deg, #00b894, #00a381);
   color: #fff;
+  box-shadow: 0 2px 6px rgba(0, 184, 148, 0.25);
 }
 
 .btn-add-group:hover:not(:disabled) {
-  background: #00a381;
+  box-shadow: 0 4px 12px rgba(0, 184, 148, 0.35);
 }
 
 .toolbar-move-select {
   font-size: 12px;
-  padding: 5px 8px;
-  border: 1px solid #dfe6e9;
-  border-radius: 6px;
-  color: #2d3436;
-  background: #fff;
+  padding: 7px 10px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  color: #2d3748;
+  background: #f8fafc;
   cursor: pointer;
   outline: none;
 }
@@ -478,30 +526,36 @@ function performUndo() {
 }
 
 .btn-reset {
-  background: #dfe6e9;
-  color: #636e72;
+  background: #edf2f7;
+  color: #718096;
   font-size: 12px;
+}
+
+.btn-reset:hover {
+  background: #e2e8f0;
 }
 
 .btn-undo {
-  background: #fdcb6e;
+  background: linear-gradient(135deg, #fdcb6e, #f39c12);
   color: #2d3436;
   font-size: 12px;
+  box-shadow: 0 2px 6px rgba(253, 203, 110, 0.3);
 }
 
 .btn-undo:hover {
-  background: #f39c12;
+  box-shadow: 0 4px 10px rgba(253, 203, 110, 0.4);
 }
 
 .btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+  transform: none !important;
 }
 
 .group {
   margin-bottom: 16px;
-  border: 1px solid #eee;
-  border-radius: 8px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
   overflow: hidden;
 }
 
@@ -509,8 +563,8 @@ function performUndo() {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 12px;
-  background: #f8f9fa;
+  padding: 12px 14px;
+  background: linear-gradient(180deg, #f7f8fc, #fafbfc);
   font-size: 14px;
   font-weight: 600;
   user-select: none;
@@ -520,24 +574,24 @@ function performUndo() {
   cursor: pointer;
   width: 18px;
   text-align: center;
-  color: #636e72;
+  color: #667eea;
 }
 
 .group-name {
   cursor: pointer;
-  color: #6c5ce7;
+  color: #667eea;
 }
 
 .group-count {
-  color: #b2bec3;
+  color: #a0aec0;
   font-size: 12px;
   font-weight: 400;
 }
 
 .group-name-input {
-  padding: 3px 6px;
-  border: 1px solid #6c5ce7;
-  border-radius: 4px;
+  padding: 4px 8px;
+  border: 1.5px solid #667eea;
+  border-radius: 6px;
   font-size: 14px;
   outline: none;
 }
@@ -546,34 +600,36 @@ function performUndo() {
   border: none;
   background: none;
   cursor: pointer;
-  font-size: 13px;
-  color: #b2bec3;
-  padding: 2px 4px;
-  border-radius: 4px;
+  font-size: 14px;
+  color: #a0aec0;
+  padding: 4px 6px;
+  border-radius: 6px;
+  transition: all 0.15s;
 }
 
 .btn-icon:hover {
-  background: #eee;
-  color: #636e72;
+  background: #edf2f7;
+  color: #4a5568;
 }
 
 .btn-del:hover {
-  color: #d63031;
-  background: #ffeaea;
+  color: #e53e3e;
+  background: #fff5f5;
 }
 
 .btn-sort {
   font-size: 10px;
-  padding: 1px 3px;
+  padding: 3px 5px;
 }
 
 .btn-sort:hover {
-  background: #dfe6e9;
-  color: #6c5ce7;
+  background: #ebf4ff;
+  color: #667eea;
 }
 
 .btn-add:hover {
-  color: #00b894;
+  color: #38a169;
+  background: #f0fff4;
 }
 
 .group-body {
@@ -590,27 +646,36 @@ function performUndo() {
   font-size: 13px;
 }
 
+.expiry-th {
+  cursor: pointer;
+  user-select: none;
+}
+
+.expiry-th:hover {
+  color: #667eea;
+}
+
 .ptable th,
 .ptable td {
-  padding: 6px 8px;
+  padding: 8px 10px;
   text-align: left;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid #f0f1f8;
   white-space: nowrap;
 }
 
 .ptable th {
-  background: #fff;
+  background: #fafbfc;
   font-weight: 600;
-  color: #636e72;
+  color: #4a5568;
   font-size: 12px;
 }
 
 .ptable tr:hover td {
-  background: #fafbfc;
+  background: rgba(102, 126, 234, 0.03);
 }
 
 .num-cell {
-  color: #b2bec3;
+  color: #a0aec0;
   font-size: 12px;
 }
 
@@ -620,7 +685,7 @@ function performUndo() {
 
 .action-cell {
   display: flex;
-  gap: 2px;
+  gap: 3px;
   align-items: center;
 }
 
@@ -631,7 +696,7 @@ function performUndo() {
 .cmd-send-btns {
   display: flex;
   flex-wrap: wrap;
-  gap: 3px;
+  gap: 4px;
   margin-bottom: 4px;
 }
 
@@ -646,24 +711,25 @@ function performUndo() {
   background: none;
   cursor: pointer;
   font-size: 13px;
-  color: #b2bec3;
+  color: #a0aec0;
   padding: 1px 3px;
   border-radius: 3px;
   line-height: 1;
+  transition: all 0.15s;
 }
 
 .btn-cmd-del:hover:not(:disabled) {
-  color: #d63031;
-  background: #ffeaea;
+  color: #e53e3e;
+  background: #fff5f5;
 }
 
 .btn-custom-send {
-  background: #a29bfe;
+  background: linear-gradient(135deg, #a29bfe, #6c5ce7);
   color: #fff;
 }
 
 .btn-custom-send:hover:not(:disabled) {
-  background: #6c5ce7;
+  background: linear-gradient(135deg, #6c5ce7, #5a4bd1);
 }
 
 .cmd-add-row {
@@ -675,7 +741,7 @@ function performUndo() {
 
 .expiry-cell {
   font-size: 12px;
-  color: #636e72;
+  color: #4a5568;
   white-space: pre-wrap;
   word-break: break-word;
   min-width: 100px;
@@ -692,7 +758,7 @@ function performUndo() {
 }
 
 .expiry-red {
-  color: #d63031;
+  color: #e53e3e;
   font-weight: 600;
 }
 
@@ -719,14 +785,14 @@ function performUndo() {
 
 .remark-input:hover,
 .remark-input:focus {
-  border-color: #dfe6e9;
+  border-color: #e2e8f0;
   background: #fff;
 }
 
 .inline-input {
-  padding: 4px 6px;
-  border: 1px solid #74b9ff;
-  border-radius: 4px;
+  padding: 4px 8px;
+  border: 1.5px solid #74b9ff;
+  border-radius: 6px;
   font-size: 13px;
   outline: none;
   width: 100%;
@@ -734,43 +800,52 @@ function performUndo() {
 }
 
 .btn-sm {
-  padding: 4px 8px;
+  padding: 5px 10px;
   border: none;
-  border-radius: 4px;
+  border-radius: 6px;
   font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.15s;
+}
+
+.btn-sm:active:not(:disabled) {
+  transform: scale(0.95);
 }
 
 .btn-sm:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+  transform: none !important;
 }
 
 .btn-login {
-  background: #dfe6e9;
-  color: #2d3436;
+  background: linear-gradient(135deg, #74b9ff, #0984e3);
+  color: #fff;
+  box-shadow: 0 1px 3px rgba(9, 132, 227, 0.2);
 }
 
 .btn-login:hover:not(:disabled) {
-  background: #b2bec3;
+  box-shadow: 0 3px 8px rgba(9, 132, 227, 0.35);
 }
 
 .btn-query {
-  background: #74b9ff;
+  background: linear-gradient(135deg, #667eea, #764ba2);
   color: #fff;
+  box-shadow: 0 1px 3px rgba(102, 126, 234, 0.2);
 }
 
 .btn-query:hover:not(:disabled) {
-  background: #0984e3;
+  box-shadow: 0 3px 8px rgba(102, 126, 234, 0.35);
 }
 
 .btn-mgmt {
-  background: #fdcb6e;
+  background: linear-gradient(135deg, #fdcb6e, #f39c12);
   color: #2d3436;
+  box-shadow: 0 1px 3px rgba(253, 203, 110, 0.2);
 }
 
 .btn-mgmt:hover:not(:disabled) {
-  background: #f39c12;
+  box-shadow: 0 3px 8px rgba(253, 203, 110, 0.35);
 }
 </style>

@@ -53,7 +53,7 @@ watch(() => props.messages.length, () => {
 .empty-state {
   text-align: center;
   padding: 32px;
-  color: #b2bec3;
+  color: #a0aec0;
   font-size: 14px;
 }
 
@@ -66,10 +66,15 @@ watch(() => props.messages.length, () => {
 }
 
 .msg-entry {
-  padding: 8px 10px;
+  padding: 10px 12px;
   background: #fafbfc;
-  border-radius: 6px;
-  border-left: 3px solid #6c5ce7;
+  border-radius: 8px;
+  border-left: 3px solid #667eea;
+  transition: background 0.15s;
+}
+
+.msg-entry:hover {
+  background: #f0f1f8;
 }
 
 .msg-meta {
@@ -81,30 +86,31 @@ watch(() => props.messages.length, () => {
 
 .msg-time {
   font-size: 11px;
-  color: #b2bec3;
+  color: #a0aec0;
 }
 
 .msg-label {
   font-size: 11px;
-  color: #6c5ce7;
-  background: #f0ecff;
+  color: #667eea;
+  background: rgba(102, 126, 234, 0.1);
   padding: 1px 6px;
-  border-radius: 3px;
+  border-radius: 4px;
   font-weight: 500;
 }
 
 .msg-body {
   font-size: 13px;
-  color: #2d3436;
+  color: #2d3748;
   white-space: pre-wrap;
   word-break: break-all;
-  line-height: 1.4;
+  line-height: 1.5;
 }
 
 .progress-hint {
   text-align: center;
   font-size: 13px;
-  color: #6c5ce7;
+  font-weight: 600;
+  color: #667eea;
   padding: 8px;
   animation: pulse 1.5s ease-in-out infinite;
 }
@@ -125,13 +131,17 @@ watch(() => props.messages.length, () => {
   border: none;
   border-radius: 6px;
   font-size: 13px;
-  cursor: pointer;
   font-weight: 500;
+  cursor: pointer;
 }
 
 .btn-primary {
-  background: #dfe6e9;
-  color: #636e72;
+  background: #edf2f7;
+  color: #4a5568;
+}
+
+.btn-primary:hover {
+  background: #e2e8f0;
 }
 
 .btn:disabled {

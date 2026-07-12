@@ -51,7 +51,7 @@ import ProjectTable from './components/ProjectTable.vue'
 import ChatDialog from './components/ChatDialog.vue'
 import ResultPanel from './components/ResultPanel.vue'
 import { sendPrivateMessage, sendGroupMessage, getLoginInfo, setBaseUrl, setToken, getFriendMsgHistory } from './api/napcat.js'
-import { updateProjectExpiryById } from './data/projects.js'
+import { updateProjectExpiryById, findProjectIdByName } from './data/projects.js'
 
 const config = reactive({
   apiUrl: '/api',
@@ -111,7 +111,17 @@ function setupWebSocket() {
           if (senderId === String(config.targetId)) {
             const msg = data.raw_message || data.message
             if (msg) {
-              addMessage('robot', decodeHtml(msg), data.sender?.nickname || `QQ:${senderId}`)
+              const text = decodeHtml(msg)
+              addMessage('robot', text, data.sender?.nickname || `QQ:${senderId}`)
+              if (dialogVisible.value) {
+                const msgTime = new Date(data.time * 1000).toLocaleTimeString()
+                if (!dialogSeenSet.has(text)) {
+                  dialogSeenSet.add(text)
+                  dialogMessages.value = [...dialogMessages.value, { role: 'reply', content: text, time: msgTime }]
+                  if (!dialogIsQuery.value) dialogWaiting.value = false
+                  tryParseExpiry(text)
+                }
+              }
             }
           }
         }
@@ -303,15 +313,21 @@ const dialogProjectName = ref('')
 const dialogProjectId = ref('')
 let dialogPollTimer = null
 let dialogSendStartTime = 0
+const dialogSeenSet = new Set()
 
 function closeDialog() {
   clearInterval(dialogPollTimer)
+  dialogPollTimer = null
   dialogVisible.value = false
   dialogIsQuery.value = false
   dialogMode.value = ''
+  dialogSeenSet.clear()
 }
 
 async function openDialog(query, mode = 'custom', projectName = '', projectId = '') {
+  clearInterval(dialogPollTimer)
+  dialogPollTimer = null
+  dialogSeenSet.clear()
   dialogTitle.value = query
   dialogMessages.value = []
   dialogWaiting.value = true
@@ -328,13 +344,14 @@ async function handleDialogSend(text) {
   dialogMessages.value = [...dialogMessages.value, { role: 'sent', content: text, time }]
   addMessage('sent', text, dialogProjectName.value)
   dialogWaiting.value = true
-  dialogSendStartTime = Date.now()
 
   const sendFn = config.chatType === 'group' ? sendGroupMessage : sendPrivateMessage
   try {
     const res = await sendFn(Number(config.targetId), text)
     if (res?.status === 'ok') {
-      startDialogPolling()
+      dialogSendStartTime = Date.now()
+      const isNewPoll = !dialogPollTimer
+      if (isNewPoll) startDialogPolling()
     } else {
       dialogMessages.value = [...dialogMessages.value, { role: 'reply', content: res?.msg || res?.wording || '发送失败', time: new Date().toLocaleTimeString() }]
       dialogWaiting.value = false
@@ -347,8 +364,7 @@ async function handleDialogSend(text) {
 
 function startDialogPolling() {
   clearInterval(dialogPollTimer)
-  const timeFloor = dialogSendStartTime - 1000
-  const seen = new Set()
+  let timeFloor = dialogSendStartTime - 1000
   let pollCount = 0
   const maxPolls = 30
   let autoReplied = false
@@ -370,8 +386,8 @@ function startDialogPolling() {
             if (!text && Array.isArray(msg.message)) {
               text = msg.message.map(s => s.data?.text || '').join('')
             }
-            if (text && !seen.has(text)) {
-              seen.add(text)
+            if (text && !dialogSeenSet.has(text)) {
+              dialogSeenSet.add(text)
               text = decodeHtml(text)
               const msgTime = new Date(msg.time * 1000).toLocaleTimeString()
               dialogMessages.value = [...dialogMessages.value, { role: 'reply', content: text, time: msgTime }]
@@ -390,6 +406,7 @@ function startDialogPolling() {
           if (/查询完成/.test(lastText)) {
             dialogWaiting.value = false
             clearInterval(dialogPollTimer)
+            dialogPollTimer = null
             return
           }
 
@@ -399,6 +416,7 @@ function startDialogPolling() {
               if (option) {
                 autoReplied = true
                 clearInterval(dialogPollTimer)
+                dialogPollTimer = null
                 await handleDialogSend(option)
                 return
               }
@@ -413,17 +431,20 @@ function startDialogPolling() {
       if (quietCount >= quietLimit) {
         dialogWaiting.value = false
         clearInterval(dialogPollTimer)
+        dialogPollTimer = null
         return
       }
       if (pollCount >= maxPolls) {
         dialogWaiting.value = false
         clearInterval(dialogPollTimer)
+        dialogPollTimer = null
       }
     } catch (e) {
       quietCount++
       if (quietCount >= quietLimit || pollCount >= maxPolls) {
         dialogWaiting.value = false
         clearInterval(dialogPollTimer)
+        dialogPollTimer = null
       }
     }
   }, 1500)
@@ -434,11 +455,22 @@ function tryParseExpiry(text) {
   if (dialogMode.value !== 'manage') return
 
   const lines = text.split('\n')
-  const parts = []
-  const dateRe = /(\d{4}[.\-]\d{2}[.\-]\d{2})/
+  const projectEntries = {}
+  let currentProjectId = dialogProjectId.value
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim()
+
+    const headerMatch = line.match(/^={2,}\s*(?:我的)?\s*(.+?)\s*(?:账号)?\s*={2,}$/)
+    if (headerMatch) {
+      const pn = headerMatch[1].trim()
+      const found = findProjectIdByName(pn)
+      if (found) {
+        currentProjectId = found
+      }
+      continue
+    }
+
     const acctMatch = line.match(/^\[(\d+)\](.*)/)
     if (!acctMatch) continue
     const num = acctMatch[1]
@@ -447,34 +479,59 @@ function tryParseExpiry(text) {
     let name = acctMatch[2].trim().replace(/^账号\s*[:：]\s*/, '').trim()
     if (!name || /^(全部|删除|授权|批量)/.test(name)) continue
 
+    let date = null
     const inlineDate = name.match(/\(到期\s*[:：]\s*(\d{4}[.\-]\d{2}[.\-]\d{2})\)/)
     if (inlineDate) {
       name = name.replace(/\(到期\s*[:：].*\)/, '').trim()
-      parts.push(`${inlineDate[1].replace(/-/g, '.')}-${name}`)
-      continue
-    }
-
-    const authDate = line.match(/授权\s*[:：]\s*[^\d]*(\d{4}[.\-]\d{2}[.\-]\d{2})/)
-    if (authDate) {
-      parts.push(`${authDate[1].replace(/-/g, '.')}-${name}`)
-      continue
-    }
-
-    for (let j = i + 1; j <= Math.min(i + 4, lines.length - 1); j++) {
-      const nl = lines[j].trim()
-      if (/^\[/.test(nl)) break
-      const m = nl.match(dateRe)
-      if (m && /到期|授权/.test(nl)) {
-        parts.push(`${m[1].replace(/-/g, '.')}-${name}`)
-        break
+      date = inlineDate[1].replace(/-/g, '.')
+    } else {
+      const authDate = line.match(/授权\s*[:：]\s*[^\d]*(\d{4}[.\-]\d{2}[.\-]\d{2})/)
+      if (authDate) {
+        date = authDate[1].replace(/-/g, '.')
+      } else {
+        for (let j = i + 1; j <= Math.min(i + 4, lines.length - 1); j++) {
+          const nl = lines[j].trim()
+          if (/^\[/.test(nl)) break
+          const m = nl.match(/(\d{4}[.\-]\d{2}[.\-]\d{2})/)
+          if (m && /到期|授权/.test(nl)) {
+            date = m[1].replace(/-/g, '.')
+            break
+          }
+        }
       }
     }
+
+    if (date) {
+      if (!projectEntries[currentProjectId]) projectEntries[currentProjectId] = []
+      projectEntries[currentProjectId].push(`${date}-${name}`)
+    }
   }
 
-  if (parts.length) {
-    updateProjectExpiryById(dialogProjectId.value, parts.join('\n'))
-    expiryVer.value++
+  let updated = false
+  for (const [pid, entries] of Object.entries(projectEntries)) {
+    if (entries.length) {
+      updateProjectExpiryById(pid, entries.join('\n'))
+      updated = true
+    }
   }
+
+  if (!updated) {
+    const globalRe = /(\d{4}[.\-]\d{2}[.\-]\d{2})/g
+    const fallback = []
+    let m
+    while ((m = globalRe.exec(text)) !== null) {
+      const ctx = text.substring(Math.max(0, m.index - 30), m.index + m[0].length + 10)
+      if (/到期|授权/.test(ctx)) {
+        fallback.push(m[1].replace(/-/g, '.'))
+      }
+    }
+    if (fallback.length) {
+      updateProjectExpiryById(dialogProjectId.value, fallback.join('\n'))
+      updated = true
+    }
+  }
+
+  if (updated) expiryVer.value++
 }
 </script>
 
@@ -483,36 +540,43 @@ function tryParseExpiry(text) {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: #f5f6fa;
-  color: #2d3436;
+  background: linear-gradient(180deg, #f7f8fc, #fff);
+  color: #2d3748;
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .app {
   max-width: 960px;
   margin: 0 auto;
-  padding: 24px 16px;
+  padding: 24px 16px 40px;
 }
 
 header {
   text-align: center;
   margin-bottom: 32px;
+  padding: 28px 16px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  border-radius: 16px;
+  color: #fff;
+  box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
 }
 
 header h1 {
   font-size: 24px;
   font-weight: 700;
-  color: #2d3436;
-  margin-bottom: 8px;
+  color: #fff;
+  margin-bottom: 6px;
 }
 
 header p {
   font-size: 14px;
-  color: #636e72;
+  color: rgba(255, 255, 255, 0.85);
 }
 
 main {
@@ -523,16 +587,17 @@ main {
 
 .panel {
   background: #fff;
-  border-radius: 12px;
+  border-radius: 14px;
   padding: 20px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+  border: 1px solid #f0f1f8;
 }
 
 .panel-title {
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 700;
   margin-bottom: 16px;
-  color: #2d3436;
+  color: #1a1a2e;
 }
 
 .form-row {
@@ -550,26 +615,73 @@ main {
 
 .form-group label {
   font-size: 13px;
-  color: #636e72;
-  font-weight: 500;
+  color: #4a5568;
+  font-weight: 600;
 }
 
 .form-group input,
 .form-group select {
-  padding: 8px 12px;
-  border: 1px solid #dfe6e9;
-  border-radius: 8px;
+  padding: 10px 14px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
   font-size: 14px;
   outline: none;
-  transition: border-color 0.2s;
+  background: #f8fafc;
+  transition: all 0.2s;
 }
 
 .form-group input:focus,
 .form-group select:focus {
-  border-color: #6c5ce7;
+  border-color: #667eea;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.12);
+}
+
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  padding-top: 8px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.status-dot.online {
+  background: #38a169;
+  box-shadow: 0 0 6px rgba(56, 161, 105, 0.5);
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+.status-dot.connecting {
+  background: #d69e2e;
+  box-shadow: 0 0 6px rgba(214, 158, 46, 0.5);
+  animation: pulse-dot 0.8s ease-in-out infinite;
+}
+
+.status-dot.offline {
+  background: #a0aec0;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.3); }
 }
 
 .config-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.actions {
   display: flex;
   gap: 8px;
   margin-top: 12px;
@@ -579,39 +691,76 @@ main {
   padding: 8px 16px;
   border: none;
   border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.95);
 }
 
 .btn-primary {
-  background: #6c5ce7;
+  background: linear-gradient(135deg, #667eea, #764ba2);
   color: #fff;
+  box-shadow: 0 2px 6px rgba(102, 126, 234, 0.3);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #5a4bd1;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
 
 .btn-danger {
-  background: #d63031;
+  background: linear-gradient(135deg, #e74c3c, #c0392b);
   color: #fff;
+  box-shadow: 0 2px 6px rgba(231, 76, 60, 0.25);
+}
+
+.btn-danger:hover:not(:disabled) {
+  box-shadow: 0 4px 12px rgba(231, 76, 60, 0.35);
 }
 
 .btn-success {
-  background: #00b894;
+  background: linear-gradient(135deg, #00b894, #00a381);
   color: #fff;
+  box-shadow: 0 2px 6px rgba(0, 184, 148, 0.25);
+}
+
+.btn-success:hover:not(:disabled) {
+  box-shadow: 0 4px 12px rgba(0, 184, 148, 0.35);
 }
 
 .btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+  transform: none !important;
 }
 
 hr {
   border: none;
-  border-top: 1px solid #dfe6e9;
+  border-top: 1px solid #e2e8f0;
   margin: 8px 0;
+}
+
+@media (max-width: 480px) {
+  .app {
+    padding: 12px 10px 32px;
+  }
+  header {
+    border-radius: 12px;
+    padding: 20px 14px;
+  }
+  header h1 {
+    font-size: 20px;
+  }
+  .panel {
+    border-radius: 12px;
+    padding: 16px;
+  }
+  .connection-status {
+    font-size: 14px;
+  }
 }
 </style>

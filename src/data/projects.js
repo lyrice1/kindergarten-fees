@@ -124,6 +124,20 @@ export function moveProject(fromGroupId, toGroupId, pid) {
   return true
 }
 
+export function reorderProject(groupId, pid, direction) {
+  const g = _groups.find(g => g.id === groupId)
+  if (!g) return
+  const idx = g.projects.findIndex(p => p.id === pid)
+  if (idx === -1) return
+  if (direction === 'up' && idx > 0) {
+    [g.projects[idx - 1], g.projects[idx]] = [g.projects[idx], g.projects[idx - 1]]
+    saveGroups()
+  } else if (direction === 'down' && idx < g.projects.length - 1) {
+    [g.projects[idx], g.projects[idx + 1]] = [g.projects[idx + 1], g.projects[idx]]
+    saveGroups()
+  }
+}
+
 export function addCustomCommand(groupId, pid, cmd) {
   const g = _groups.find(g => g.id === groupId)
   if (!g) return
@@ -176,6 +190,41 @@ export function updateProjectExpiryById(pid, expiry) {
       return
     }
   }
+}
+
+function parseEarliestExpiryTs(expiryStr) {
+  if (!expiryStr) return Infinity
+  const re = /(\d{4}\.\d{2}\.\d{2})/g
+  let m
+  let earliest = Infinity
+  while ((m = re.exec(expiryStr)) !== null) {
+    const d = new Date(m[1].replace(/\./g, '-'))
+    if (isNaN(d.getTime())) continue
+    const ts = d.getTime()
+    if (ts < earliest) earliest = ts
+  }
+  return earliest
+}
+
+export function sortProjectsByExpiry(groupId) {
+  const g = _groups.find(g => g.id === groupId)
+  if (!g) return
+  g.projects.sort((a, b) => {
+    return parseEarliestExpiryTs(a.expiry) - parseEarliestExpiryTs(b.expiry)
+  })
+  saveGroups()
+}
+
+export function findProjectIdByName(name) {
+  const lower = name.toLowerCase()
+  for (const g of _groups) {
+    for (const p of g.projects) {
+      if (p.name.toLowerCase() === lower) return p.id
+      if (p.name.includes(name)) return p.id
+      if (name.includes(p.name)) return p.id
+    }
+  }
+  return null
 }
 
 export function resetToDefault() {
