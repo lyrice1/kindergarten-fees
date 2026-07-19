@@ -30,8 +30,8 @@
     </div>
     </div>
 
-    <div v-for="group in filteredGroups" :key="group.id" class="group">
-      <div class="group-header">
+    <div v-for="group in filteredGroups" :key="group.id" class="group-wrapper">
+      <div :class="['group-header', 'group-header--sticky', { 'group-header--collapsed': collapsed[group.id] }]">
         <span class="group-toggle" @click="toggleGroup(group.id)">{{ collapsed[group.id] ? '▶' : '▼' }}</span>
         <template v-if="editingGroup === group.id">
           <input v-model="editGroupName" class="group-name-input" @keydown.enter="saveGroupName(group.id)" @keydown.escape="editingGroup = null" ref="groupInput" />
@@ -48,7 +48,8 @@
           <button class="btn-icon btn-del" title="删除分组" @click="confirmDeleteGroup(group.id)">✕</button>
         </template>
       </div>
-      <div v-if="!collapsed[group.id]" class="group-body">
+      <div v-if="!collapsed[group.id]" class="group">
+        <div class="group-body">
         <div class="table-scroll">
           <table class="ptable">
             <thead>
@@ -125,6 +126,7 @@
           </table>
         </div>
       </div>
+    </div>
     </div>
   </div>
 </template>
@@ -568,9 +570,13 @@ function performUndo() {
 }
 
 .group {
-  margin-bottom: 16px;
   border: 1.5px solid #e2e8f0;
-  border-radius: 10px;
+  border-top: none;
+  border-radius: 0 0 10px 10px;
+}
+
+.group-wrapper {
+  margin-bottom: 16px;
 }
 
 .group-header {
@@ -582,9 +588,20 @@ function performUndo() {
   font-size: 14px;
   font-weight: 600;
   user-select: none;
+  border: 1.5px solid #e2e8f0;
+  border-bottom: none;
+  border-radius: 10px 10px 0 0;
+}
+
+.group-header--sticky {
   position: sticky;
   top: 90px;
   z-index: 5;
+}
+
+.group-header--collapsed {
+  border-radius: 10px;
+  border-bottom: 1.5px solid #e2e8f0;
 }
 
 .group-toggle {
