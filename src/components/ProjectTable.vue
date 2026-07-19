@@ -1,6 +1,7 @@
 <template>
   <div class="panel">
     <div class="panel-title">项目指令</div>
+    <div class="toolbar-sticky">
     <div class="toolbar">
       <div class="search-row">
         <input v-model="search" placeholder="搜索项目名称..." class="search-input" />
@@ -23,12 +24,10 @@
         </select>
         <button v-if="selectedCount === 1" class="btn btn-batch" @click="moveSelectedProjectUp" title="上移选中项目">▲ 上移</button>
         <button v-if="selectedCount === 1" class="btn btn-batch" @click="moveSelectedProjectDown" title="下移选中项目">▼ 下移</button>
-         <button class="btn btn-export" @click="exportData">导出数据</button>
-         <button class="btn btn-import" @click="triggerImport">导入数据</button>
-         <input ref="importInput" type="file" accept=".json" style="display:none" @change="importData" />
          <button class="btn btn-reset" @click="resetAll">重置</button>
          <button v-if="undoStack.length" class="btn btn-undo" @click="performUndo">撤销 ({{ undoStack.length }})</button>
       </div>
+    </div>
     </div>
 
     <div v-for="group in filteredGroups" :key="group.id" class="group">
@@ -149,7 +148,6 @@ const newCmd = ref('')
 const moveTargetGroup = ref('')
 const undoStack = ref([])
 const groups = ref(getGroups())
-const importInput = ref(null)
 
 watch(() => props.expiryVer, () => {
   groups.value = getGroups()
@@ -415,46 +413,6 @@ function sortByExpiry(gid) {
   groups.value = getGroups()
 }
 
-function exportData() {
-  const data = localStorage.getItem('qq-bot-project-groups')
-  if (!data) {
-    alert('没有可导出的数据')
-    return
-  }
-  const blob = new Blob([data], { type: 'application/json' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `qq-bot-backup-${new Date().toISOString().slice(0, 10)}.json`
-  a.click()
-  URL.revokeObjectURL(url)
-}
-
-function triggerImport() {
-  importInput.value?.click()
-}
-
-function importData(e) {
-  const file = e.target.files?.[0]
-  if (!file) return
-  const reader = new FileReader()
-  reader.onload = (ev) => {
-    try {
-      const data = JSON.parse(ev.target.result)
-      if (!Array.isArray(data)) throw new Error('格式错误')
-      if (!confirm(`即将导入 ${data.length} 个分组的数据，当前数据将被覆盖，确定继续吗？`)) return
-      saveUndoSnapshot()
-      localStorage.setItem('qq-bot-project-groups', JSON.stringify(data))
-      groups.value = getGroups()
-      selected.value = new Set()
-    } catch (err) {
-      alert('导入失败：文件格式不正确，请选择之前导出的 .json 备份文件')
-    }
-  }
-  reader.readAsText(file)
-  e.target.value = ''
-}
-
 function performUndo() {
   if (!undoStack.value.length) return
   const snapshot = undoStack.value.pop()
@@ -465,6 +423,14 @@ function performUndo() {
 </script>
 
 <style scoped>
+.toolbar-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: #fff;
+  padding-bottom: 4px;
+}
+
 .toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -593,28 +559,6 @@ function performUndo() {
 
 .btn-undo:hover {
   box-shadow: 0 4px 10px rgba(253, 203, 110, 0.4);
-}
-
-.btn-export {
-  background: linear-gradient(135deg, #00b894, #00a381);
-  color: #fff;
-  font-size: 12px;
-  box-shadow: 0 2px 6px rgba(0, 184, 148, 0.25);
-}
-
-.btn-export:hover {
-  box-shadow: 0 4px 10px rgba(0, 184, 148, 0.35);
-}
-
-.btn-import {
-  background: linear-gradient(135deg, #6c5ce7, #5a4bd1);
-  color: #fff;
-  font-size: 12px;
-  box-shadow: 0 2px 6px rgba(108, 92, 231, 0.25);
-}
-
-.btn-import:hover {
-  box-shadow: 0 4px 10px rgba(108, 92, 231, 0.35);
 }
 
 .btn:disabled {
