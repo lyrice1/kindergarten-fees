@@ -31,7 +31,7 @@
     </div>
 
     <div v-for="group in filteredGroups" :key="group.id" class="group-wrapper">
-      <div :class="['group-header', 'group-header--sticky', { 'group-header--collapsed': collapsed[group.id] }]">
+      <div :class="['group-header', 'group-header--sticky', { 'group-header--collapsed': collapsed[group.id] }]" style="position:sticky;top:90px;z-index:5">
         <span class="group-toggle" @click="toggleGroup(group.id)">{{ collapsed[group.id] ? '▶' : '▼' }}</span>
         <template v-if="editingGroup === group.id">
           <input v-model="editGroupName" class="group-name-input" @keydown.enter="saveGroupName(group.id)" @keydown.escape="editingGroup = null" ref="groupInput" />

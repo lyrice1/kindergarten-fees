@@ -642,10 +642,8 @@ main {
 
 .panel {
   background: #fff;
-  border-radius: 14px;
-  padding: 20px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
   border: 1px solid #f0f1f8;
+  padding: 20px;
 }
 
 .panel-title {
