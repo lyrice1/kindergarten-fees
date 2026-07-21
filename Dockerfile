@@ -1,16 +1,10 @@
-FROM node:22-alpine AS backend-deps
-WORKDIR /app/server
-COPY server/package.json server/package-lock.json ./
-RUN npm ci --production
+FROM node:22-alpine
+RUN apk add --no-cache nginx
 
-FROM nginx:alpine
 COPY dist/ /usr/share/nginx/html/
-COPY default.conf /etc/nginx/conf.d/default.conf
+COPY default.conf /etc/nginx/http.d/default.conf
 
-RUN apk add --no-cache nodejs
-COPY --from=backend-deps /app/server/node_modules /app/server/node_modules
-COPY server/index.js /app/server/index.js
-COPY server/db.js /app/server/db.js
+COPY server/ /app/server/
 
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
